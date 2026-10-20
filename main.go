@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,8 +21,9 @@ type Person struct {
 
 func main() {
 	var person *Person
-	testString := `{"name":"Saleh", "age":20}`
-	person, err := fromJSON(testString)
+	// testString := `{"name":"Saleh", "age":20}`
+	testWrongString := `{"name":"Saleh", "last_name":"Test", "age":20}` //Test unexpected non-desired fields
+	person, err := fromJSON(testWrongString)
 	if err != nil {
 		fmt.Println("Could not parse person:", err)
 		return
@@ -32,11 +34,21 @@ func main() {
 func fromJSON(input string) (*Person, error) {
 	var person Person
 
+	inputString := bytes.NewReader([]byte(input))
+	decoder := json.NewDecoder(inputString)
+	decoder.DisallowUnknownFields()
+
+	err := decoder.Decode(&person)
+
+	if err != nil {
+		return nil, err
+	}
+
 	if err := json.Unmarshal([]byte(input), &person); err != nil {
 		return nil, fmt.Errorf("decode person JSON: %w", err)
 	}
 
-	//Note JSON validation will throw an error if age is negative since I used uint8
+	//Note: JSON validation will throw an error if age is negative since I used uint8
 	//Therefore, negative validation is not necessary here :P
 	if strings.TrimSpace(person.Name) == "" {
 		return nil, ErrEmptyName
