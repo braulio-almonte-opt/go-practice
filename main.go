@@ -10,7 +10,6 @@ import (
 
 func main() {
 	r := gin.Default()
-	r.Use(gin.Logger())
 	models.ConnectDatabase()
 
 	users := r.Group("/users")
