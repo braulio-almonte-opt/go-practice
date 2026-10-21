@@ -19,6 +19,9 @@ type User struct {
 	Role     string             `json:"role"`
 }
 
+// Note to self, seems like collection line is the same in all functions
+// Migh as well make it a constant variable instead [Pending testing]
+
 func InsertUser(user User) error {
 	collection := mongoClient.Database(db).Collection(collname)
 	inserted, err := collection.InsertOne(context.TODO(), user)
@@ -31,61 +34,61 @@ func InsertUser(user User) error {
 	return err
 }
 
-func InsertManyUsers(users []User) error {
-	newUsers := make([]interface{}, len(users))
-	for i, user := range users {
-		newUsers[i] = user
-	}
-	collection := mongoClient.Database(db).Collection(collname)
-	result, err := collection.InsertMany(context.TODO(), newUsers)
+// func InsertManyUsers(users []User) error {
+// 	newUsers := make([]interface{}, len(users))
+// 	for i, user := range users {
+// 		newUsers[i] = user
+// 	}
+// 	collection := mongoClient.Database(db).Collection(collname)
+// 	result, err := collection.InsertMany(context.TODO(), newUsers)
 
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println(result)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	log.Println(result)
 
-	return err
-}
+// 	return err
+// }
 
-func UpdateUser(userID string, user User) error {
-	id, err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
-		return (err)
-	}
+// func UpdateUser(userID string, user User) error {
+// 	id, err := primitive.ObjectIDFromHex(userID)
+// 	if err != nil {
+// 		return (err)
+// 	}
 
-	filter := bson.M{"_id": id}
-	update := bson.M{"$set": bson.M{
-		"username": user.UserName,
-		"password": user.Password,
-		"realname": user.RealName,
-		"lastname": user.LastName,
-		"role":     user.Role,
-		"balance":  user.Balance}}
+// 	filter := bson.M{"_id": id}
+// 	update := bson.M{"$set": bson.M{
+// 		"username": user.UserName,
+// 		"password": user.Password,
+// 		"realname": user.RealName,
+// 		"lastname": user.LastName,
+// 		"role":     user.Role,
+// 		"balance":  user.Balance}}
 
-	collection := mongoClient.Database(db).Collection(collname)
-	result, err := collection.UpdateOne(context.TODO(), filter, update)
-	if err != nil {
-		return err
-	}
-	fmt.Println("New record", result)
-	return nil
-}
+// 	collection := mongoClient.Database(db).Collection(collname)
+// 	result, err := collection.UpdateOne(context.TODO(), filter, update)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	fmt.Println("New record", result)
+// 	return nil
+// }
 
-func DeleteUser(userID string) error {
-	id, err := primitive.ObjectIDFromHex(userID)
-	if err != nil {
-		return err
-	}
-	filter := bson.M{"_id": id}
-	collection := mongoClient.Database(db).Collection(collname)
-	result, err := collection.DeleteOne(context.TODO(), filter)
-	if err != nil {
-		return err
-	}
+// func DeleteUser(userID string) error {
+// 	id, err := primitive.ObjectIDFromHex(userID)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	filter := bson.M{"_id": id}
+// 	collection := mongoClient.Database(db).Collection(collname)
+// 	result, err := collection.DeleteOne(context.TODO(), filter)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	fmt.Println("Deleted object: ", result)
-	return nil
-}
+// 	fmt.Println("Deleted object: ", result)
+// 	return nil
+// }
 
 func Find(userName string) User {
 	var result User
@@ -98,6 +101,30 @@ func Find(userName string) User {
 		log.Fatal(err)
 	}
 	return result
+}
+
+func FindByID(userID string) (User, error) {
+
+	var result User
+	id, err := primitive.ObjectIDFromHex(userID)
+
+	if err != nil {
+
+		log.Default().Println(err)
+	}
+
+	filter := bson.M{"_id": id}
+
+	collection := mongoClient.Database(db).Collection(collname)
+
+	err = collection.FindOne(context.TODO(), filter).Decode(&result)
+
+	if err != nil {
+		log.Default().Println(err)
+	}
+
+	return result, err
+
 }
 
 func FindAll() []User {

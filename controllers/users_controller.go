@@ -32,14 +32,13 @@ func ListAllUsers(c *gin.Context) {
 }
 
 func FindUserByID(c *gin.Context) {
-	userID := c.Param("id")
 
-	err := models.DeleteUser(userID)
+	userID := c.Param("id")
+	user, err := models.FindByID(userID)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
-
+		c.JSON(http.StatusNotFound, gin.H{"error": "Failed to find user"})
+	} else {
+		c.JSON(http.StatusOK, user)
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 }
