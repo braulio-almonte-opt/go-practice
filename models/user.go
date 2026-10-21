@@ -15,7 +15,7 @@ type User struct {
 	Password string             `json:"password"`
 	RealName string             `json:"realname"`
 	LastName string             `json:"lastname"`
-	Balance  int                `json:"balance"`
+	Balance  float64            `json:"balance"`
 	Role     string             `json:"role"`
 }
 
