@@ -90,7 +90,7 @@ func DeleteUser(userID string) error {
 func Find(userName string) User {
 	var result User
 
-	filter := bson.D{{"username", userName}}
+	filter := bson.D{{Key: "username", Value: userName}}
 	collection := mongoClient.Database(db).Collection(collname)
 	err := collection.FindOne(context.TODO(), filter).Decode(&result)
 
