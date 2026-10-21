@@ -3,7 +3,7 @@
 Build a production-ready REST API using the following stack:
 * **Framework:** [Gin](https://github.com/gin-gonic/gin)
 * **Authentication:** JWT (JSON Web Tokens)
-* **Database:** MySQL
+* **Database:** MongoDB
 * **Dependency Injection:** [Google Wire](https://github.com/google/wire)
 * **Mocking:** [Mockery](https://github.com/vektra/mockery)
 
@@ -81,3 +81,4 @@ Controller (Handler) ──> Service (Business Logic) ──> DAO / Repository (
 * [ ] **Pagination:** Add page and limit parameters to `GET /users`.
 * [ ] **Structured Logging:** Integrate structured logging (e.g., `zap` or `logrus`).
 * [ ] **Graceful Shutdown:** Implement graceful server shutdown on OS signals (e.g., `SIGTERM`, `SIGINT`).
+* [ ] **MySQL Integration:** Integrate the same logic with MySQL after having succesfully used MongoDB
