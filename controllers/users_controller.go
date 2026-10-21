@@ -10,22 +10,29 @@ import (
 )
 
 func CreateUser(c *gin.Context) {
+	createUser(c, models.InsertUser)
+}
+
+func NewCreateUserHandler(insertUser func(models.User) error) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		createUser(c, insertUser)
+	}
+}
+
+func createUser(c *gin.Context, insertUser func(models.User) error) {
 	var user models.User
 
 	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error:": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	err := models.InsertUser(user)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error:": "Failed to insert user"})
-
-	} else {
-		c.JSON(http.StatusCreated, gin.H{"message": "User inserted"})
+	if err := insertUser(user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert user"})
+		return
 	}
 
+	c.JSON(http.StatusCreated, gin.H{"message": "User inserted"})
 }
 
 func ListAllUsers(c *gin.Context) {
