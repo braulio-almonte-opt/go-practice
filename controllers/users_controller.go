@@ -1,10 +1,12 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/braulio-almonte-opt/go-practice/models"
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func CreateUser(c *gin.Context) {
@@ -20,15 +22,20 @@ func CreateUser(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error:": "Failed to insert user"})
 
+	} else {
+		c.JSON(http.StatusCreated, gin.H{"message": "User inserted"})
 	}
-
-	c.JSON(http.StatusCreated, gin.H{"message": "User inserted"})
 
 }
 
 func ListAllUsers(c *gin.Context) {
-	users := models.FindAll()
-	c.JSON(http.StatusOK, users)
+	users, err := models.FindAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find users"})
+		return
+	} else {
+		c.JSON(http.StatusOK, users)
+	}
 }
 
 func FindUserByID(c *gin.Context) {
@@ -37,8 +44,16 @@ func FindUserByID(c *gin.Context) {
 	user, err := models.FindByID(userID)
 
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Failed to find user"})
-	} else {
-		c.JSON(http.StatusOK, user)
+		switch {
+		case errors.Is(err, models.ErrInvalidUserID):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		case errors.Is(err, mongo.ErrNoDocuments):
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find user"})
+		}
+		return
 	}
+
+	c.JSON(http.StatusOK, user)
 }

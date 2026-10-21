@@ -2,12 +2,15 @@ package models
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+var ErrInvalidUserID = errors.New("invalid user ID")
 
 type User struct {
 	ID       primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
@@ -19,78 +22,45 @@ type User struct {
 	Role     string             `json:"role"`
 }
 
-// Note to self, seems like collection line is the same in all functions
-// Migh as well make it a constant variable instead [Pending testing]
+//This is for the future
+// type UserRepository interface {
+// 	InsertUser(ctx context.Context, user User) error
+// }
+
+// type MongoUserDAO struct {
+// 	client *mongo.Client
+// 	dbName string
+// 	coll   string
+// }
+
+// func NewMongoUserDAO(client *mongo.Client, dbName, coll string) *MongoUserDAO {
+// 	return &MongoUserDAO{client: client, dbName: dbName, coll: coll}
+// }
+
+// func (dao *MongoUserDAO) InsertUser2(ctx context.Context, user User) error {
+// 	collection := dao.client.Database(dao.dbName).Collection(dao.coll)
+
+// 	_, err := collection.InsertOne(ctx, user)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
 
 func InsertUser(user User) error {
 	collection := mongoClient.Database(db).Collection(collname)
 	inserted, err := collection.InsertOne(context.TODO(), user)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Default().Println(err)
+		return err
 	}
 
 	fmt.Println("Inserted a record with id: ", inserted.InsertedID)
 	return err
 }
 
-// func InsertManyUsers(users []User) error {
-// 	newUsers := make([]interface{}, len(users))
-// 	for i, user := range users {
-// 		newUsers[i] = user
-// 	}
-// 	collection := mongoClient.Database(db).Collection(collname)
-// 	result, err := collection.InsertMany(context.TODO(), newUsers)
-
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	log.Println(result)
-
-// 	return err
-// }
-
-// func UpdateUser(userID string, user User) error {
-// 	id, err := primitive.ObjectIDFromHex(userID)
-// 	if err != nil {
-// 		return (err)
-// 	}
-
-// 	filter := bson.M{"_id": id}
-// 	update := bson.M{"$set": bson.M{
-// 		"username": user.UserName,
-// 		"password": user.Password,
-// 		"realname": user.RealName,
-// 		"lastname": user.LastName,
-// 		"role":     user.Role,
-// 		"balance":  user.Balance}}
-
-// 	collection := mongoClient.Database(db).Collection(collname)
-// 	result, err := collection.UpdateOne(context.TODO(), filter, update)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	fmt.Println("New record", result)
-// 	return nil
-// }
-
-// func DeleteUser(userID string) error {
-// 	id, err := primitive.ObjectIDFromHex(userID)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	filter := bson.M{"_id": id}
-// 	collection := mongoClient.Database(db).Collection(collname)
-// 	result, err := collection.DeleteOne(context.TODO(), filter)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	fmt.Println("Deleted object: ", result)
-// 	return nil
-// }
-
-func Find(userName string) User {
+func Find(userName string) (User, error) {
 	var result User
 
 	filter := bson.D{{Key: "username", Value: userName}}
@@ -98,9 +68,11 @@ func Find(userName string) User {
 	err := collection.FindOne(context.TODO(), filter).Decode(&result)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Default().Println(err)
+		return result, err
 	}
-	return result
+
+	return result, err
 }
 
 func FindByID(userID string) (User, error) {
@@ -109,8 +81,7 @@ func FindByID(userID string) (User, error) {
 	id, err := primitive.ObjectIDFromHex(userID)
 
 	if err != nil {
-
-		log.Default().Println(err)
+		return result, fmt.Errorf("%w: %v", ErrInvalidUserID, err)
 	}
 
 	filter := bson.M{"_id": id}
@@ -120,14 +91,14 @@ func FindByID(userID string) (User, error) {
 	err = collection.FindOne(context.TODO(), filter).Decode(&result)
 
 	if err != nil {
-		log.Default().Println(err)
+		return result, err
 	}
 
 	return result, err
 
 }
 
-func FindAll() []User {
+func FindAll() ([]User, error) {
 
 	var results []User
 	filter := bson.M{}
@@ -135,13 +106,15 @@ func FindAll() []User {
 	cursor, err := collection.Find(context.TODO(), filter)
 
 	if err != nil {
-		log.Fatal(err)
+		log.Default().Println(err)
+		return nil, err
 	}
 
 	err = cursor.All(context.TODO(), &results)
 	if err != nil {
-		log.Fatal(err)
+		log.Default().Println(err)
+		return nil, err
 	}
 
-	return results
+	return results, err
 }
