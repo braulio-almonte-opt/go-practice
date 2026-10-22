@@ -8,6 +8,7 @@ import (
 
 	"github.com/braulio-almonte-opt/go-practice/controllers"
 	"github.com/braulio-almonte-opt/go-practice/models"
+	"github.com/braulio-almonte-opt/go-practice/repository"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,6 +25,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	var userRepo repository.UserRepository = repository.NewMongoUserDAO(
+		client,
+		models.DatabaseName,
+		models.UserCollectionName,
+	)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -35,22 +41,16 @@ func run() error {
 	users := r.Group("/users")
 	{
 		//Create user
-		users.POST("", controllers.NewCreateUserHandler(func(user models.User) error {
-			return models.InsertUser(client, user)
-		}))
+		users.POST("", controllers.NewCreateUserHandler(userRepo.InsertUser))
 
 		//Get user by JWT
 		// users.GET("/users/me", controllers.GetUserByJWT)
 
 		//Get user by ID
-		users.GET("/:id", controllers.NewFindUserByIDHandler(func(userID string) (models.User, error) {
-			return models.FindByID(client, userID)
-		}))
+		users.GET("/:id", controllers.NewFindUserByIDHandler(userRepo.FindByID))
 
 		//Get all users
-		users.GET("", controllers.NewListAllUsersHandler(func() ([]models.User, error) {
-			return models.FindAll(client)
-		}))
+		users.GET("", controllers.NewListAllUsersHandler(userRepo.FindAll))
 	}
 	log.Println("Server started")
 	if err := r.Run(); err != nil {

@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -15,7 +16,7 @@ import (
 
 func TestPostUser(t *testing.T) {
 	var insertedUser models.User
-	router := setupRouter(func(user models.User) error {
+	router := setupRouter(func(_ context.Context, user models.User) error {
 		insertedUser = user
 		return nil
 	})
@@ -45,7 +46,7 @@ func TestPostUser(t *testing.T) {
 
 func TestPostUserRejectsInvalidJSON(t *testing.T) {
 	insertCalled := false
-	router := setupRouter(func(models.User) error {
+	router := setupRouter(func(context.Context, models.User) error {
 		insertCalled = true
 		return nil
 	})
@@ -65,7 +66,7 @@ func TestPostUserRejectsInvalidJSON(t *testing.T) {
 }
 
 func TestPostUserReturnsInternalServerErrorWhenInsertFails(t *testing.T) {
-	router := setupRouter(func(models.User) error {
+	router := setupRouter(func(context.Context, models.User) error {
 		return errors.New("database unavailable")
 	})
 
@@ -85,7 +86,7 @@ func TestPostUserReturnsInternalServerErrorWhenInsertFails(t *testing.T) {
 }
 
 func TestListUsersDoesNotExposePasswords(t *testing.T) {
-	router := setupListUsersRouter(func() ([]models.User, error) {
+	router := setupListUsersRouter(func(context.Context) ([]models.User, error) {
 		return []models.User{
 			{
 				ID:       primitive.NewObjectID(),
@@ -121,7 +122,7 @@ func TestListUsersDoesNotExposePasswords(t *testing.T) {
 
 func TestFindUserDoesNotExposePassword(t *testing.T) {
 	userID := primitive.NewObjectID()
-	router := setupFindUserRouter(func(id string) (models.User, error) {
+	router := setupFindUserRouter(func(_ context.Context, id string) (models.User, error) {
 		if id != userID.Hex() {
 			t.Fatalf("expected lookup ID %q, got %q", userID.Hex(), id)
 		}
@@ -157,7 +158,7 @@ func TestFindUserDoesNotExposePassword(t *testing.T) {
 }
 
 func TestListUsersReturnsInternalServerErrorWhenFindFails(t *testing.T) {
-	router := setupListUsersRouter(func() ([]models.User, error) {
+	router := setupListUsersRouter(func(context.Context) ([]models.User, error) {
 		return nil, errors.New("database unavailable")
 	})
 
@@ -199,7 +200,7 @@ func TestFindUserMapsErrorsToHTTPStatuses(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			router := setupFindUserRouter(func(string) (models.User, error) {
+			router := setupFindUserRouter(func(context.Context, string) (models.User, error) {
 				return models.User{}, tt.err
 			})
 

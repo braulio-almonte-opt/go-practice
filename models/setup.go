@@ -12,8 +12,8 @@ import (
 )
 
 const connectionString = "mongodb://localhost:27017/goAPITest"
-const db = "goAPI"
-const collname = "users"
+const DatabaseName = "goAPI"
+const UserCollectionName = "users"
 
 func ConnectDatabase() (*mongo.Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

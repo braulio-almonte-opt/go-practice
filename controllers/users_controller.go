@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -30,13 +31,13 @@ func newUserResponse(user models.User) userResponse {
 	}
 }
 
-func NewCreateUserHandler(insertUser func(models.User) error) gin.HandlerFunc {
+func NewCreateUserHandler(insertUser func(context.Context, models.User) error) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		createUser(c, insertUser)
 	}
 }
 
-func createUser(c *gin.Context, insertUser func(models.User) error) {
+func createUser(c *gin.Context, insertUser func(context.Context, models.User) error) {
 	var user models.User
 
 	if err := c.ShouldBindJSON(&user); err != nil {
@@ -44,7 +45,7 @@ func createUser(c *gin.Context, insertUser func(models.User) error) {
 		return
 	}
 
-	if err := insertUser(user); err != nil {
+	if err := insertUser(c.Request.Context(), user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert user"})
 		return
 	}
@@ -52,14 +53,14 @@ func createUser(c *gin.Context, insertUser func(models.User) error) {
 	c.JSON(http.StatusCreated, gin.H{"message": "User inserted"})
 }
 
-func NewListAllUsersHandler(findAll func() ([]models.User, error)) gin.HandlerFunc {
+func NewListAllUsersHandler(findAll func(context.Context) ([]models.User, error)) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		listAllUsers(c, findAll)
 	}
 }
 
-func listAllUsers(c *gin.Context, findAll func() ([]models.User, error)) {
-	users, err := findAll()
+func listAllUsers(c *gin.Context, findAll func(context.Context) ([]models.User, error)) {
+	users, err := findAll(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find users"})
 		return
@@ -72,14 +73,14 @@ func listAllUsers(c *gin.Context, findAll func() ([]models.User, error)) {
 	c.JSON(http.StatusOK, response)
 }
 
-func NewFindUserByIDHandler(findByID func(string) (models.User, error)) gin.HandlerFunc {
+func NewFindUserByIDHandler(findByID func(context.Context, string) (models.User, error)) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		findUserByID(c, findByID)
 	}
 }
 
-func findUserByID(c *gin.Context, findByID func(string) (models.User, error)) {
-	user, err := findByID(c.Param("id"))
+func findUserByID(c *gin.Context, findByID func(context.Context, string) (models.User, error)) {
+	user, err := findByID(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		switch {
 		case errors.Is(err, models.ErrInvalidUserID):
