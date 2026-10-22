@@ -24,7 +24,7 @@ func main() {
 		users.GET("/:id", controllers.FindUserByID)
 
 		//Get all users
-		users.GET("/", controllers.ListAllUsers)
+		users.GET("", controllers.ListAllUsers)
 
 	}
 	log.Println("Server started")

@@ -12,3 +12,17 @@ func setupRouter(insertUser func(models.User) error) *gin.Engine {
 	router.POST("/users", controllers.NewCreateUserHandler(insertUser))
 	return router
 }
+
+func setupListUsersRouter(findAll func() ([]models.User, error)) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/users", controllers.NewListAllUsersHandler(findAll))
+	return router
+}
+
+func setupFindUserRouter(findByID func(string) (models.User, error)) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.GET("/users/:id", controllers.NewFindUserByIDHandler(findByID))
+	return router
+}
