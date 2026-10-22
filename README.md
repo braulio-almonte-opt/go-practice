@@ -72,6 +72,18 @@ Controller (Handler) ──> Service (Business Logic) ──> DAO / Repository (
   * Unauthorized / Forbidden access cases
 * **Isolation Rule:** No direct database calls inside service-layer unit tests.
 
+### Regenerating Repository Mocks
+
+Repository mocks are generated from `repository.UserRepository` with Mockery
+v2.53.8. After changing the interface, run this command from the project root:
+
+```sh
+go run github.com/vektra/mockery/v2@v2.53.8
+```
+
+The generated mock is saved in `repository/mocks/user_repository.go`. The
+version is pinned in the command so regeneration uses the same Mockery release.
+
 ---
 
 ### Bonus Challenges

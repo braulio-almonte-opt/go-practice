@@ -1,0 +1,12 @@
+disable-version-string: true
+issue-845-fix: true
+resolve-type-alias: false
+with-expecter: true
+packages:
+  github.com/braulio-almonte-opt/go-practice/repository:
+    config:
+      dir: repository/mocks
+      filename: user_repository.go
+      outpkg: mocks
+    interfaces:
+      UserRepository:

@@ -6,98 +6,64 @@ import (
 	"testing"
 
 	"github.com/braulio-almonte-opt/go-practice/models"
+	repositorymocks "github.com/braulio-almonte-opt/go-practice/repository/mocks"
 	"go.mongodb.org/mongo-driver/mongo"
 )
-
-type fakeUserRepository struct {
-	ctx          context.Context
-	insertedUser models.User
-	username     string
-	userID       string
-	users        []models.User
-	user         models.User
-	err          error
-}
-
-func (f *fakeUserRepository) InsertUser(ctx context.Context, user models.User) error {
-	f.ctx = ctx
-	f.insertedUser = user
-	return f.err
-}
-
-func (f *fakeUserRepository) FindByUsername(ctx context.Context, username string) (models.User, error) {
-	f.ctx = ctx
-	f.username = username
-	return f.user, f.err
-}
-
-func (f *fakeUserRepository) FindByID(ctx context.Context, userID string) (models.User, error) {
-	f.ctx = ctx
-	f.userID = userID
-	return f.user, f.err
-}
-
-func (f *fakeUserRepository) FindAll(ctx context.Context) ([]models.User, error) {
-	f.ctx = ctx
-	return f.users, f.err
-}
 
 func TestUserServiceDelegatesToRepository(t *testing.T) {
 	expectedUser := models.User{UserName: "jane"}
 	expectedUsers := []models.User{expectedUser}
-	repo := &fakeUserRepository{user: expectedUser, users: expectedUsers}
+	repo := new(repositorymocks.MockUserRepository)
 	userService := NewUserService(repo)
 	ctx := context.Background()
 
+	repo.EXPECT().InsertUser(ctx, expectedUser).Return(nil).Once()
+	repo.EXPECT().FindByUsername(ctx, "jane").Return(expectedUser, nil).Once()
+	repo.EXPECT().FindByID(ctx, "user-id").Return(expectedUser, nil).Once()
+	repo.EXPECT().FindAll(ctx).Return(expectedUsers, nil).Once()
+
 	if err := userService.CreateUser(ctx, expectedUser); err != nil {
 		t.Fatalf("CreateUser returned unexpected error: %v", err)
-	}
-	if repo.ctx != ctx {
-		t.Error("CreateUser did not pass the request context to the repository")
-	}
-	if repo.insertedUser != expectedUser {
-		t.Errorf("CreateUser passed user %#v, want %#v", repo.insertedUser, expectedUser)
 	}
 
 	user, err := userService.FindByUsername(ctx, "jane")
 	if err != nil {
 		t.Fatalf("FindByUsername returned unexpected error: %v", err)
 	}
-	if repo.ctx != ctx {
-		t.Error("FindByUsername did not pass the request context to the repository")
-	}
-	if repo.username != "jane" || user != expectedUser {
-		t.Errorf("FindByUsername result = (%q, %#v), want (%q, %#v)", repo.username, user, "jane", expectedUser)
+	if user != expectedUser {
+		t.Errorf("FindByUsername returned %#v, want %#v", user, expectedUser)
 	}
 
 	user, err = userService.FindByID(ctx, "user-id")
 	if err != nil {
 		t.Fatalf("FindByID returned unexpected error: %v", err)
 	}
-	if repo.ctx != ctx {
-		t.Error("FindByID did not pass the request context to the repository")
-	}
-	if repo.userID != "user-id" || user != expectedUser {
-		t.Errorf("FindByID result = (%q, %#v), want (%q, %#v)", repo.userID, user, "user-id", expectedUser)
+	if user != expectedUser {
+		t.Errorf("FindByID returned %#v, want %#v", user, expectedUser)
 	}
 
 	users, err := userService.ListUsers(ctx)
 	if err != nil {
 		t.Fatalf("ListUsers returned unexpected error: %v", err)
 	}
-	if repo.ctx != ctx {
-		t.Error("ListUsers did not pass the request context to the repository")
-	}
 	if len(users) != len(expectedUsers) || users[0] != expectedUser {
 		t.Errorf("ListUsers returned %#v, want %#v", users, expectedUsers)
 	}
+
+	repo.AssertExpectations(t)
 }
 
 func TestUserServicePropagatesRepositoryErrors(t *testing.T) {
 	repositoryErr := errors.New("repository unavailable")
-	userService := NewUserService(&fakeUserRepository{err: repositoryErr})
+	repo := new(repositorymocks.MockUserRepository)
+	userService := NewUserService(repo)
 	ctx := context.Background()
 	user := models.User{UserName: "jane"}
+
+	repo.EXPECT().InsertUser(ctx, user).Return(repositoryErr).Once()
+	repo.EXPECT().FindByUsername(ctx, "jane").Return(models.User{}, repositoryErr).Once()
+	repo.EXPECT().FindByID(ctx, "user-id").Return(models.User{}, repositoryErr).Once()
+	repo.EXPECT().FindAll(ctx).Return(nil, repositoryErr).Once()
 
 	if err := userService.CreateUser(ctx, user); !errors.Is(err, repositoryErr) {
 		t.Errorf("CreateUser error = %v, want %v", err, repositoryErr)
@@ -111,35 +77,47 @@ func TestUserServicePropagatesRepositoryErrors(t *testing.T) {
 	if _, err := userService.ListUsers(ctx); !errors.Is(err, repositoryErr) {
 		t.Errorf("ListUsers error = %v, want %v", err, repositoryErr)
 	}
+
+	repo.AssertExpectations(t)
 }
 
 func TestUserServicePreservesLookupErrors(t *testing.T) {
 	tests := []struct {
-		name string
-		err  error
-		call func(*UserService) error
+		name   string
+		err    error
+		expect func(*repositorymocks.MockUserRepository, context.Context)
+		call   func(*UserService, context.Context) error
 	}{
 		{
 			name: "invalid user ID",
 			err:  models.ErrInvalidUserID,
-			call: func(userService *UserService) error {
-				_, err := userService.FindByID(context.Background(), "invalid-id")
+			expect: func(repo *repositorymocks.MockUserRepository, ctx context.Context) {
+				repo.EXPECT().FindByID(ctx, "invalid-id").Return(models.User{}, models.ErrInvalidUserID).Once()
+			},
+			call: func(userService *UserService, ctx context.Context) error {
+				_, err := userService.FindByID(ctx, "invalid-id")
 				return err
 			},
 		},
 		{
 			name: "user not found by ID",
 			err:  mongo.ErrNoDocuments,
-			call: func(userService *UserService) error {
-				_, err := userService.FindByID(context.Background(), "valid-id")
+			expect: func(repo *repositorymocks.MockUserRepository, ctx context.Context) {
+				repo.EXPECT().FindByID(ctx, "valid-id").Return(models.User{}, mongo.ErrNoDocuments).Once()
+			},
+			call: func(userService *UserService, ctx context.Context) error {
+				_, err := userService.FindByID(ctx, "valid-id")
 				return err
 			},
 		},
 		{
 			name: "user not found by username",
 			err:  mongo.ErrNoDocuments,
-			call: func(userService *UserService) error {
-				_, err := userService.FindByUsername(context.Background(), "missing")
+			expect: func(repo *repositorymocks.MockUserRepository, ctx context.Context) {
+				repo.EXPECT().FindByUsername(ctx, "missing").Return(models.User{}, mongo.ErrNoDocuments).Once()
+			},
+			call: func(userService *UserService, ctx context.Context) error {
+				_, err := userService.FindByUsername(ctx, "missing")
 				return err
 			},
 		},
@@ -147,11 +125,16 @@ func TestUserServicePreservesLookupErrors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			userService := NewUserService(&fakeUserRepository{err: test.err})
+			ctx := context.Background()
+			repo := new(repositorymocks.MockUserRepository)
+			test.expect(repo, ctx)
+			userService := NewUserService(repo)
 
-			if err := test.call(userService); !errors.Is(err, test.err) {
+			err := test.call(userService, ctx)
+			if !errors.Is(err, test.err) {
 				t.Errorf("lookup error = %v, want an error matching %v", err, test.err)
 			}
+			repo.AssertExpectations(t)
 		})
 	}
 }
