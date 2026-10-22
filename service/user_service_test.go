@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/braulio-almonte-opt/go-practice/models"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type fakeUserRepository struct {
@@ -109,5 +110,48 @@ func TestUserServicePropagatesRepositoryErrors(t *testing.T) {
 	}
 	if _, err := userService.ListUsers(ctx); !errors.Is(err, repositoryErr) {
 		t.Errorf("ListUsers error = %v, want %v", err, repositoryErr)
+	}
+}
+
+func TestUserServicePreservesLookupErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		call func(*UserService) error
+	}{
+		{
+			name: "invalid user ID",
+			err:  models.ErrInvalidUserID,
+			call: func(userService *UserService) error {
+				_, err := userService.FindByID(context.Background(), "invalid-id")
+				return err
+			},
+		},
+		{
+			name: "user not found by ID",
+			err:  mongo.ErrNoDocuments,
+			call: func(userService *UserService) error {
+				_, err := userService.FindByID(context.Background(), "valid-id")
+				return err
+			},
+		},
+		{
+			name: "user not found by username",
+			err:  mongo.ErrNoDocuments,
+			call: func(userService *UserService) error {
+				_, err := userService.FindByUsername(context.Background(), "missing")
+				return err
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			userService := NewUserService(&fakeUserRepository{err: test.err})
+
+			if err := test.call(userService); !errors.Is(err, test.err) {
+				t.Errorf("lookup error = %v, want an error matching %v", err, test.err)
+			}
+		})
 	}
 }
