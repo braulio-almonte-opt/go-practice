@@ -20,12 +20,12 @@ import (
 
 func initializeRouter(client *mongo.Client, jwtSecret []byte) (*gin.Engine, error) {
 	userRepository := provideUserRepository(client)
-	tokenIssuer, err := provideJWTManager(jwtSecret)
+	jwtManager, err := provideJWTManager(jwtSecret)
 	if err != nil {
 		return nil, err
 	}
-	userService := service.NewUserService(userRepository, tokenIssuer)
-	engine := newRouter(userService)
+	userService := service.NewUserService(userRepository, jwtManager)
+	engine := newRouter(userService, jwtManager)
 	return engine, nil
 }
 
@@ -37,11 +37,11 @@ func provideUserRepository(client *mongo.Client) repository.UserRepository {
 	)
 }
 
-func provideJWTManager(secret []byte) (service.TokenIssuer, error) {
+func provideJWTManager(secret []byte) (*auth.JWTManager, error) {
 	return auth.NewJWTManager(secret)
 }
 
 var userApplicationSet = wire.NewSet(
 	provideUserRepository,
-	provideJWTManager, service.NewUserService, newRouter,
+	provideJWTManager, wire.Bind(new(service.TokenIssuer), new(*auth.JWTManager)), service.NewUserService, newRouter,
 )

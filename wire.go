@@ -22,13 +22,14 @@ func provideUserRepository(client *mongo.Client) repository.UserRepository {
 	)
 }
 
-func provideJWTManager(secret []byte) (service.TokenIssuer, error) {
+func provideJWTManager(secret []byte) (*auth.JWTManager, error) {
 	return auth.NewJWTManager(secret)
 }
 
 var userApplicationSet = wire.NewSet(
 	provideUserRepository,
 	provideJWTManager,
+	wire.Bind(new(service.TokenIssuer), new(*auth.JWTManager)),
 	service.NewUserService,
 	newRouter,
 )

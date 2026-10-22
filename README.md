@@ -51,12 +51,19 @@ bytes before starting the application, for example:
 export JWT_SECRET="$(openssl rand -base64 32)"
 ```
 
+The JWT middleware verifies the Bearer scheme, HS256 signature, expiration,
+and user identity claims. It protects `GET /users/me`, `GET /users/:id`, and
+`GET /users`; login and registration remain public. On successful verification,
+it makes the subject and role available to Gin handlers under
+`authenticatedUserID` and `authenticatedRole`. Owner/admin authorization is
+tracked separately under AUTHZ1 and AUTHZ2.
+
 Unknown usernames and incorrect passwords receive the same `401` response.
 Missing or malformed credentials receive `400`; repository or signing failures
 receive `500`. Password hashing remains the separate BONUS2 task; until it is
 implemented, login compares passwords in the same format currently stored by
-registration. Tokens are issued by API6; AUTH1 must be completed before
-protected routes verify and accept them.
+registration. Tokens are issued by API6 and verified by AUTH1 middleware on
+protected routes.
 
 ---
 

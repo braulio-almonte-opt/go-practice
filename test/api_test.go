@@ -10,11 +10,89 @@ import (
 	"testing"
 	"time"
 
+	"github.com/braulio-almonte-opt/go-practice/auth"
 	"github.com/braulio-almonte-opt/go-practice/models"
 	"github.com/braulio-almonte-opt/go-practice/service"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+func TestProtectedUserRoutesRequireJWTAndMeUsesTokenIdentity(t *testing.T) {
+	jwtManager, err := auth.NewJWTManager([]byte("0123456789abcdef0123456789abcdef"))
+	if err != nil {
+		t.Fatalf("create JWT manager: %v", err)
+	}
+	userID := primitive.NewObjectID()
+	token, _, err := jwtManager.Issue(models.User{ID: userID, Role: "user"})
+	if err != nil {
+		t.Fatalf("issue test token: %v", err)
+	}
+
+	findCalled := false
+	listCalled := false
+	router := setupProtectedUsersRouter(
+		jwtManager,
+		func(_ context.Context, requestedID string) (models.User, error) {
+			findCalled = true
+			if requestedID != userID.Hex() {
+				t.Errorf("lookup ID = %q, want verified token subject %q", requestedID, userID.Hex())
+			}
+			return models.User{
+				ID:       userID,
+				UserName: "jane",
+				Password: "must-not-be-returned",
+				Role:     "user",
+			}, nil
+		},
+		func(context.Context) ([]models.User, error) {
+			listCalled = true
+			return []models.User{}, nil
+		},
+	)
+
+	for _, path := range []string{"/users/me", "/users/" + userID.Hex(), "/users"} {
+		t.Run("rejects missing token "+path, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+			if response.Code != http.StatusUnauthorized {
+				t.Errorf("status = %d, want %d for %s", response.Code, http.StatusUnauthorized, path)
+			}
+		})
+	}
+	if findCalled || listCalled {
+		t.Fatal("protected handlers ran without a valid token")
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/users/me?id="+primitive.NewObjectID().Hex(), nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET /users/me status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if !findCalled {
+		t.Fatal("GET /users/me did not look up the user from the token")
+	}
+	if strings.Contains(response.Body.String(), "must-not-be-returned") ||
+		strings.Contains(response.Body.String(), `"password"`) {
+		t.Errorf("GET /users/me leaked password data: %s", response.Body.String())
+	}
+
+	findCalled = false
+	for _, path := range []string{"/users/" + userID.Hex(), "/users"} {
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		request.Header.Set("Authorization", "Bearer "+token)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Errorf("GET %s status = %d, want %d: %s", path, response.Code, http.StatusOK, response.Body.String())
+		}
+	}
+	if !findCalled || !listCalled {
+		t.Error("valid token did not reach both ID lookup and list handlers")
+	}
+}
 
 func TestPostLoginReturnsBearerToken(t *testing.T) {
 	expiresAt := time.Now().Add(time.Hour).UTC().Truncate(time.Second)

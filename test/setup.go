@@ -3,11 +3,26 @@ package test
 import (
 	"context"
 
+	"github.com/braulio-almonte-opt/go-practice/auth"
 	"github.com/braulio-almonte-opt/go-practice/controllers"
 	"github.com/braulio-almonte-opt/go-practice/models"
 	"github.com/braulio-almonte-opt/go-practice/service"
 	"github.com/gin-gonic/gin"
 )
+
+func setupProtectedUsersRouter(
+	jwtManager *auth.JWTManager,
+	findByID func(context.Context, string) (models.User, error),
+	findAll func(context.Context) ([]models.User, error),
+) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	users := router.Group("/users", jwtManager.Middleware())
+	users.GET("/me", controllers.NewCurrentUserHandler(findByID))
+	users.GET("/:id", controllers.NewFindUserByIDHandler(findByID))
+	users.GET("", controllers.NewListAllUsersHandler(findAll))
+	return router
+}
 
 func setupLoginRouter(login func(context.Context, string, string) (service.LoginResult, error)) *gin.Engine {
 	gin.SetMode(gin.TestMode)

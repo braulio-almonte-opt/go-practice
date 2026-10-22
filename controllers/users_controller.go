@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/braulio-almonte-opt/go-practice/auth"
 	"github.com/braulio-almonte-opt/go-practice/models"
 	"github.com/braulio-almonte-opt/go-practice/service"
 	"github.com/gin-gonic/gin"
@@ -111,8 +112,23 @@ func NewFindUserByIDHandler(findByID func(context.Context, string) (models.User,
 	}
 }
 
+func NewCurrentUserHandler(findByID func(context.Context, string) (models.User, error)) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := c.GetString(auth.AuthenticatedUserIDKey)
+		if userID == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+		findUserByIDForID(c, findByID, userID)
+	}
+}
+
 func findUserByID(c *gin.Context, findByID func(context.Context, string) (models.User, error)) {
-	user, err := findByID(c.Request.Context(), c.Param("id"))
+	findUserByIDForID(c, findByID, c.Param("id"))
+}
+
+func findUserByIDForID(c *gin.Context, findByID func(context.Context, string) (models.User, error), userID string) {
+	user, err := findByID(c.Request.Context(), userID)
 	if err != nil {
 		switch {
 		case errors.Is(err, models.ErrInvalidUserID):
