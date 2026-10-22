@@ -10,6 +10,7 @@ import (
 
 	"github.com/braulio-almonte-opt/go-practice/models"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func TestPostUser(t *testing.T) {
@@ -152,5 +153,71 @@ func TestFindUserDoesNotExposePassword(t *testing.T) {
 	}
 	if user["username"] != "test_name" {
 		t.Fatalf("unexpected detail response: %#v", user)
+	}
+}
+
+func TestListUsersReturnsInternalServerErrorWhenFindFails(t *testing.T) {
+	router := setupListUsersRouter(func() ([]models.User, error) {
+		return nil, errors.New("database unavailable")
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/users", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusInternalServerError, response.Code, response.Body.String())
+	}
+}
+
+func TestFindUserMapsErrorsToHTTPStatuses(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantError  string
+	}{
+		{
+			name:       "invalid ID",
+			err:        models.ErrInvalidUserID,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "Invalid user ID",
+		},
+		{
+			name:       "user not found",
+			err:        mongo.ErrNoDocuments,
+			wantStatus: http.StatusNotFound,
+			wantError:  "User not found",
+		},
+		{
+			name:       "database failure",
+			err:        errors.New("database unavailable"),
+			wantStatus: http.StatusInternalServerError,
+			wantError:  "Failed to find user",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			router := setupFindUserRouter(func(string) (models.User, error) {
+				return models.User{}, tt.err
+			})
+
+			request := httptest.NewRequest(http.MethodGet, "/users/test-id", nil)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+
+			if response.Code != tt.wantStatus {
+				t.Fatalf("expected status %d, got %d: %s", tt.wantStatus, response.Code, response.Body.String())
+			}
+
+			var body map[string]string
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode response JSON: %v", err)
+			}
+			if body["error"] != tt.wantError {
+				t.Errorf("expected error %q, got %q", tt.wantError, body["error"])
+			}
+		})
 	}
 }
