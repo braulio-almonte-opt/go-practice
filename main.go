@@ -9,6 +9,7 @@ import (
 	"github.com/braulio-almonte-opt/go-practice/controllers"
 	"github.com/braulio-almonte-opt/go-practice/models"
 	"github.com/braulio-almonte-opt/go-practice/repository"
+	"github.com/braulio-almonte-opt/go-practice/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -30,6 +31,7 @@ func run() error {
 		models.DatabaseName,
 		models.UserCollectionName,
 	)
+	userService := service.NewUserService(userRepo)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -41,16 +43,16 @@ func run() error {
 	users := r.Group("/users")
 	{
 		//Create user
-		users.POST("", controllers.NewCreateUserHandler(userRepo.InsertUser))
+		users.POST("", controllers.NewCreateUserHandler(userService.CreateUser))
 
 		//Get user by JWT
 		// users.GET("/users/me", controllers.GetUserByJWT)
 
 		//Get user by ID
-		users.GET("/:id", controllers.NewFindUserByIDHandler(userRepo.FindByID))
+		users.GET("/:id", controllers.NewFindUserByIDHandler(userService.FindByID))
 
 		//Get all users
-		users.GET("", controllers.NewListAllUsersHandler(userRepo.FindAll))
+		users.GET("", controllers.NewListAllUsersHandler(userService.ListUsers))
 	}
 	log.Println("Server started")
 	if err := r.Run(); err != nil {
