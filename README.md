@@ -56,7 +56,7 @@ and user identity claims. It protects `GET /users/me`, `GET /users/:id`, and
 `GET /users`; login and registration remain public. On successful verification,
 it makes the subject and role available to Gin handlers under
 `authenticatedUserID` and `authenticatedRole`. Owner/admin authorization is
-tracked separately under AUTHZ1 and AUTHZ2.
+enforced under AUTHZ1 and AUTHZ2.
 
 Unknown usernames and incorrect passwords receive the same `401` response.
 Missing or malformed credentials receive `400`; repository or signing failures
@@ -64,6 +64,49 @@ receive `500`. Password hashing remains the separate BONUS2 task; until it is
 implemented, login compares passwords in the same format currently stored by
 registration. Tokens are issued by API6 and verified by AUTH1 middleware on
 protected routes.
+
+Public registration always assigns the `user` role, even if a request body
+includes a different role. Assign the `admin` role only through a trusted
+administrative process; otherwise anyone could grant themselves access to the
+user list or other accounts.
+
+### Testing Owner and Admin Access in HTTPie
+
+The automated authorization tests run with `go test ./...`. To manually test
+the role behavior in HTTPie GUI, use a local development database only:
+
+1. Register two accounts using `POST http://localhost:8080/users`, each with a
+   JSON body containing `username` and `password`. Registration assigns both
+   accounts the `user` role.
+2. Promote one test account to admin in the local MongoDB database using
+   `mongosh`:
+
+   ```javascript
+   use goAPI
+   db.users.updateOne(
+     { username: "test-admin" },
+     { $set: { role: "admin" } }
+   )
+   ```
+
+   Do this only in a local test database. Public registration intentionally
+   cannot grant admin privileges.
+3. In HTTPie GUI, send `POST http://localhost:8080/login` with JSON containing
+   the account's username and password. Copy `access_token` from the response.
+   Log in again after promoting the admin account so its token contains the
+   updated role.
+4. To test as the regular user, set **Auth** to **Bearer** and paste that
+   user's token. Send:
+   - `GET http://localhost:8080/users/<regular-user-id>` — expect `200` (owner).
+   - `GET http://localhost:8080/users/<other-user-id>` — expect `403`.
+   - `GET http://localhost:8080/users` — expect `403`.
+   - `GET http://localhost:8080/users/me` — expect `200`.
+5. Replace the bearer token with the admin token and repeat:
+   - `GET http://localhost:8080/users/<other-user-id>` — expect `200`.
+   - `GET http://localhost:8080/users` — expect `200`.
+
+You can retrieve the generated IDs from the admin list response or inspect the
+test records in MongoDB. Missing or invalid tokens still receive `401`.
 
 ---
 

@@ -17,8 +17,16 @@ func newRouter(userService *service.UserService, jwtManager *auth.JWTManager) *g
 	protectedUsers := r.Group("/users", jwtManager.Middleware())
 	{
 		protectedUsers.GET("/me", controllers.NewCurrentUserHandler(userService.FindByID))
-		protectedUsers.GET("/:id", controllers.NewFindUserByIDHandler(userService.FindByID))
-		protectedUsers.GET("", controllers.NewListAllUsersHandler(userService.ListUsers))
+		protectedUsers.GET(
+			"/:id",
+			auth.RequireOwnerOrAdmin(),
+			controllers.NewFindUserByIDHandler(userService.FindByID),
+		)
+		protectedUsers.GET(
+			"",
+			auth.RequireAdmin(),
+			controllers.NewListAllUsersHandler(userService.ListUsers),
+		)
 	}
 	return r
 }

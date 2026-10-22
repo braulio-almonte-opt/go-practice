@@ -8,6 +8,11 @@ import (
 
 var ErrInvalidUserID = errors.New("invalid user ID")
 
+const (
+	RoleUser  = "user"
+	RoleAdmin = "admin"
+)
+
 type User struct {
 	ID       primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
 	UserName string             `json:"username"`

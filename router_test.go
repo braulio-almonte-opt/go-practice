@@ -15,41 +15,134 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func TestRouterProtectsUserRoutesAndResolvesCurrentUser(t *testing.T) {
+func TestRouterAuthorization(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	jwtManager, err := auth.NewJWTManager([]byte("0123456789abcdef0123456789abcdef"))
 	if err != nil {
 		t.Fatalf("create JWT manager: %v", err)
 	}
 
-	userID := primitive.NewObjectID()
-	user := models.User{ID: userID, UserName: "jane", Password: "secret", Role: "user"}
-	repo := new(repositorymocks.MockUserRepository)
-	repo.EXPECT().FindByID(mock.Anything, userID.Hex()).Return(user, nil).Once()
-	router := newRouter(service.NewUserService(repo, jwtManager), jwtManager)
-
-	for _, path := range []string{"/users/me", "/users/" + userID.Hex(), "/users"} {
-		response := httptest.NewRecorder()
-		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
-		if response.Code != http.StatusUnauthorized {
-			t.Errorf("GET %s without token status = %d, want %d", path, response.Code, http.StatusUnauthorized)
-		}
+	ownerID := primitive.NewObjectID()
+	otherID := primitive.NewObjectID()
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		subjectID  primitive.ObjectID
+		role       string
+		wantStatus int
+		wantFindID string
+		wantList   bool
+	}{
+		{
+			name:       "user may fetch own record",
+			method:     http.MethodGet,
+			path:       "/users/" + ownerID.Hex(),
+			subjectID:  ownerID,
+			role:       models.RoleUser,
+			wantStatus: http.StatusOK,
+			wantFindID: ownerID.Hex(),
+		},
+		{
+			name:       "user may not fetch another user's record",
+			method:     http.MethodGet,
+			path:       "/users/" + otherID.Hex(),
+			subjectID:  ownerID,
+			role:       models.RoleUser,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "admin may fetch another user's record",
+			method:     http.MethodGet,
+			path:       "/users/" + otherID.Hex(),
+			subjectID:  ownerID,
+			role:       models.RoleAdmin,
+			wantStatus: http.StatusOK,
+			wantFindID: otherID.Hex(),
+		},
+		{
+			name:       "regular user may not list users",
+			method:     http.MethodGet,
+			path:       "/users",
+			subjectID:  ownerID,
+			role:       models.RoleUser,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "admin may list users",
+			method:     http.MethodGet,
+			path:       "/users",
+			subjectID:  ownerID,
+			role:       models.RoleAdmin,
+			wantStatus: http.StatusOK,
+			wantList:   true,
+		},
+		{
+			name:       "current user route stays accessible to regular users",
+			method:     http.MethodGet,
+			path:       "/users/me",
+			subjectID:  ownerID,
+			role:       models.RoleUser,
+			wantStatus: http.StatusOK,
+			wantFindID: ownerID.Hex(),
+		},
 	}
 
-	token, _, err := jwtManager.Issue(user)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo := new(repositorymocks.MockUserRepository)
+			if test.wantFindID != "" {
+				user := models.User{
+					ID:       mustObjectIDFromHex(t, test.wantFindID),
+					UserName: "jane",
+					Password: "must-not-be-returned",
+					Role:     models.RoleUser,
+				}
+				repo.EXPECT().
+					FindByID(mock.Anything, test.wantFindID).
+					Return(user, nil).
+					Once()
+			}
+			if test.wantList {
+				repo.EXPECT().
+					FindAll(mock.Anything).
+					Return([]models.User{{ID: ownerID, UserName: "jane", Password: "secret"}}, nil).
+					Once()
+			}
+
+			userService := service.NewUserService(repo, jwtManager)
+			router := newRouter(userService, jwtManager)
+			token, _, err := jwtManager.Issue(models.User{ID: test.subjectID, Role: test.role})
+			if err != nil {
+				t.Fatalf("issue test token: %v", err)
+			}
+			request := httptest.NewRequest(test.method, test.path, nil)
+			request.Header.Set("Authorization", "Bearer "+token)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+
+			if response.Code != test.wantStatus {
+				t.Fatalf("status = %d, want %d: %s", response.Code, test.wantStatus, response.Body.String())
+			}
+			if test.wantStatus == http.StatusForbidden &&
+				!strings.Contains(response.Body.String(), "Forbidden") {
+				t.Errorf("forbidden response body = %q", response.Body.String())
+			}
+			if strings.Contains(response.Body.String(), `"password"`) ||
+				strings.Contains(response.Body.String(), "must-not-be-returned") ||
+				strings.Contains(response.Body.String(), "secret") {
+				t.Errorf("response leaked password data: %s", response.Body.String())
+			}
+			repo.AssertExpectations(t)
+		})
+	}
+}
+
+func mustObjectIDFromHex(t *testing.T, value string) primitive.ObjectID {
+	t.Helper()
+	id, err := primitive.ObjectIDFromHex(value)
 	if err != nil {
-		t.Fatalf("issue test token: %v", err)
+		t.Fatalf("parse test ObjectID: %v", err)
 	}
-	request := httptest.NewRequest(http.MethodGet, "/users/me", nil)
-	request.Header.Set("Authorization", "Bearer "+token)
-	response := httptest.NewRecorder()
-	router.ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("GET /users/me status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
-	}
-	if response.Body.String() == "" || strings.Contains(response.Body.String(), `"password"`) {
-		t.Errorf("GET /users/me returned an empty response or exposed a password: %s", response.Body.String())
-	}
-	repo.AssertExpectations(t)
+	return id
 }

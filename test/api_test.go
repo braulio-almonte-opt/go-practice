@@ -80,17 +80,23 @@ func TestProtectedUserRoutesRequireJWTAndMeUsesTokenIdentity(t *testing.T) {
 	}
 
 	findCalled = false
-	for _, path := range []string{"/users/" + userID.Hex(), "/users"} {
-		request := httptest.NewRequest(http.MethodGet, path, nil)
+	for _, test := range []struct {
+		path       string
+		wantStatus int
+	}{
+		{path: "/users/" + userID.Hex(), wantStatus: http.StatusOK},
+		{path: "/users", wantStatus: http.StatusForbidden},
+	} {
+		request := httptest.NewRequest(http.MethodGet, test.path, nil)
 		request.Header.Set("Authorization", "Bearer "+token)
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, request)
-		if response.Code != http.StatusOK {
-			t.Errorf("GET %s status = %d, want %d: %s", path, response.Code, http.StatusOK, response.Body.String())
+		if response.Code != test.wantStatus {
+			t.Errorf("GET %s status = %d, want %d: %s", test.path, response.Code, test.wantStatus, response.Body.String())
 		}
 	}
-	if !findCalled || !listCalled {
-		t.Error("valid token did not reach both ID lookup and list handlers")
+	if !findCalled || listCalled {
+		t.Error("owner lookup should run; user-list lookup must be blocked for a regular user")
 	}
 }
 
@@ -202,7 +208,7 @@ func TestPostUser(t *testing.T) {
 		return nil
 	})
 
-	requestBody := `{"username":"test_name","password":"test_password"}`
+	requestBody := `{"username":"test_name","password":"test_password","role":"admin"}`
 	request := httptest.NewRequest(http.MethodPost, "/users", strings.NewReader(requestBody))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
@@ -212,7 +218,9 @@ func TestPostUser(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, response.Code, response.Body.String())
 	}
-	if insertedUser.UserName != "test_name" || insertedUser.Password != "test_password" {
+	if insertedUser.UserName != "test_name" ||
+		insertedUser.Password != "test_password" ||
+		insertedUser.Role != models.RoleUser {
 		t.Fatalf("inserted unexpected user: %+v", insertedUser)
 	}
 

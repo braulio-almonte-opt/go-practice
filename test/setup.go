@@ -19,8 +19,16 @@ func setupProtectedUsersRouter(
 	router := gin.New()
 	users := router.Group("/users", jwtManager.Middleware())
 	users.GET("/me", controllers.NewCurrentUserHandler(findByID))
-	users.GET("/:id", controllers.NewFindUserByIDHandler(findByID))
-	users.GET("", controllers.NewListAllUsersHandler(findAll))
+	users.GET(
+		"/:id",
+		auth.RequireOwnerOrAdmin(),
+		controllers.NewFindUserByIDHandler(findByID),
+	)
+	users.GET(
+		"",
+		auth.RequireAdmin(),
+		controllers.NewListAllUsersHandler(findAll),
+	)
 	return router
 }
 

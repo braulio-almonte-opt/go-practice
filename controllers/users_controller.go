@@ -78,6 +78,7 @@ func createUser(c *gin.Context, insertUser func(context.Context, models.User) er
 		return
 	}
 
+	user.Role = models.RoleUser
 	if err := insertUser(c.Request.Context(), user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert user"})
 		return
