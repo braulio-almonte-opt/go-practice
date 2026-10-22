@@ -138,6 +138,43 @@ func TestRouterAuthorization(t *testing.T) {
 	}
 }
 
+func TestRouterLogoutRequiresJWTAndDoesNotRevokeToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	jwtManager, err := auth.NewJWTManager([]byte("0123456789abcdef0123456789abcdef"))
+	if err != nil {
+		t.Fatalf("create JWT manager: %v", err)
+	}
+	repo := new(repositorymocks.MockUserRepository)
+	router := newRouter(service.NewUserService(repo, jwtManager), jwtManager)
+	user := models.User{ID: primitive.NewObjectID(), Role: models.RoleUser}
+	token, _, err := jwtManager.Issue(user)
+	if err != nil {
+		t.Fatalf("issue test token: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("logout without token status = %d, want %d", response.Code, http.StatusUnauthorized)
+	}
+
+	request = httptest.NewRequest(http.MethodPost, "/logout", nil)
+	request.Header.Set("Authorization", "Bearer "+token)
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("logout status = %d, want %d: %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), token) {
+		t.Errorf("logout response must not echo the token: %s", response.Body.String())
+	}
+
+	if _, err := jwtManager.Verify(token); err != nil {
+		t.Errorf("stateless logout should not revoke the token before expiration: %v", err)
+	}
+}
+
 func mustObjectIDFromHex(t *testing.T, value string) primitive.ObjectID {
 	t.Helper()
 	id, err := primitive.ObjectIDFromHex(value)

@@ -10,6 +10,7 @@ import (
 func newRouter(userService *service.UserService, jwtManager *auth.JWTManager) *gin.Engine {
 	r := gin.Default()
 	r.POST("/login", controllers.NewLoginHandler(userService.Login))
+	r.POST("/logout", jwtManager.Middleware(), controllers.NewLogoutHandler())
 	users := r.Group("/users")
 	{
 		users.POST("", controllers.NewCreateUserHandler(userService.CreateUser))

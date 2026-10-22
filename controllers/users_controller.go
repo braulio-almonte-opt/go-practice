@@ -64,6 +64,14 @@ func NewLoginHandler(login func(context.Context, string, string) (service.LoginR
 	}
 }
 
+func NewLogoutHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Logged out. Discard the access token.",
+		})
+	}
+}
+
 func NewCreateUserHandler(insertUser func(context.Context, models.User) error) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		createUser(c, insertUser)

@@ -30,6 +30,13 @@ require a valid JWT sent in the `Authorization` header using the Bearer scheme.
 | `GET /users/:id` | Return the user whose ID is in the URL. A user may request their own ID; requesting another user's ID requires the `admin` role. | Valid JWT; owner or admin |
 | `GET /users` | Return the user list. | Valid JWT; admin only |
 
+### Logging Out
+
+Send `POST http://localhost:8080/logout` with the access token in the
+`Authorization: Bearer <token>` header. A successful request returns `200` and
+asks the client to discard the token. Logout is stateless: the server does not
+revoke the token, so it can still be used until its one-hour expiration.
+
 ### Logging In
 
 `POST /login` accepts JSON containing `username` and `password`. A successful
@@ -107,6 +114,12 @@ the role behavior in HTTPie GUI, use a local development database only:
 
 You can retrieve the generated IDs from the admin list response or inspect the
 test records in MongoDB. Missing or invalid tokens still receive `401`.
+
+To test logout in HTTPie GUI, select `POST`, enter
+`http://localhost:8080/logout`, choose **Auth → Bearer**, and paste a valid
+token. Expect `200`. Retry without a token or with a malformed token and expect
+`401`. Since logout is stateless, the original token will continue to work on
+protected routes until it expires.
 
 ---
 
