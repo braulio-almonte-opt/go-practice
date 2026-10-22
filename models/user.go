@@ -8,6 +8,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var ErrInvalidUserID = errors.New("invalid user ID")
@@ -47,8 +48,8 @@ type User struct {
 // 	return nil
 // }
 
-func InsertUser(user User) error {
-	collection := mongoClient.Database(db).Collection(collname)
+func InsertUser(client *mongo.Client, user User) error {
+	collection := client.Database(db).Collection(collname)
 	inserted, err := collection.InsertOne(context.TODO(), user)
 
 	if err != nil {
@@ -60,11 +61,11 @@ func InsertUser(user User) error {
 	return err
 }
 
-func Find(userName string) (User, error) {
+func Find(client *mongo.Client, userName string) (User, error) {
 	var result User
 
 	filter := bson.D{{Key: "username", Value: userName}}
-	collection := mongoClient.Database(db).Collection(collname)
+	collection := client.Database(db).Collection(collname)
 	err := collection.FindOne(context.TODO(), filter).Decode(&result)
 
 	if err != nil {
@@ -75,7 +76,7 @@ func Find(userName string) (User, error) {
 	return result, err
 }
 
-func FindByID(userID string) (User, error) {
+func FindByID(client *mongo.Client, userID string) (User, error) {
 
 	var result User
 	id, err := primitive.ObjectIDFromHex(userID)
@@ -86,7 +87,7 @@ func FindByID(userID string) (User, error) {
 
 	filter := bson.M{"_id": id}
 
-	collection := mongoClient.Database(db).Collection(collname)
+	collection := client.Database(db).Collection(collname)
 
 	err = collection.FindOne(context.TODO(), filter).Decode(&result)
 
@@ -98,11 +99,11 @@ func FindByID(userID string) (User, error) {
 
 }
 
-func FindAll() ([]User, error) {
+func FindAll(client *mongo.Client) ([]User, error) {
 
 	var results []User
 	filter := bson.M{}
-	collection := mongoClient.Database(db).Collection(collname)
+	collection := client.Database(db).Collection(collname)
 	cursor, err := collection.Find(context.TODO(), filter)
 
 	if err != nil {

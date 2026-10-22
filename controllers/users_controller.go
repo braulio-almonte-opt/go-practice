@@ -30,10 +30,6 @@ func newUserResponse(user models.User) userResponse {
 	}
 }
 
-func CreateUser(c *gin.Context) {
-	createUser(c, models.InsertUser)
-}
-
 func NewCreateUserHandler(insertUser func(models.User) error) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		createUser(c, insertUser)
@@ -56,10 +52,6 @@ func createUser(c *gin.Context, insertUser func(models.User) error) {
 	c.JSON(http.StatusCreated, gin.H{"message": "User inserted"})
 }
 
-func ListAllUsers(c *gin.Context) {
-	listAllUsers(c, models.FindAll)
-}
-
 func NewListAllUsersHandler(findAll func() ([]models.User, error)) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		listAllUsers(c, findAll)
@@ -78,10 +70,6 @@ func listAllUsers(c *gin.Context, findAll func() ([]models.User, error)) {
 		response[i] = newUserResponse(user)
 	}
 	c.JSON(http.StatusOK, response)
-}
-
-func FindUserByID(c *gin.Context) {
-	findUserByID(c, models.FindByID)
 }
 
 func NewFindUserByIDHandler(findByID func(string) (models.User, error)) gin.HandlerFunc {
