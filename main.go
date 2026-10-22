@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -17,6 +18,11 @@ func main() {
 }
 
 func run() error {
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		return fmt.Errorf("JWT_SECRET must be configured")
+	}
+
 	client, err := models.ConnectDatabase()
 	if err != nil {
 		return err
@@ -29,7 +35,10 @@ func run() error {
 		}
 	}()
 
-	r := initializeRouter(client)
+	r, err := initializeRouter(client, []byte(jwtSecret))
+	if err != nil {
+		return fmt.Errorf("initialize application dependencies: %w", err)
+	}
 	log.Println("Server started")
 	if err := r.Run(); err != nil {
 		return err

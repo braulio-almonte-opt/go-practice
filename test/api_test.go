@@ -8,11 +8,114 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/braulio-almonte-opt/go-practice/models"
+	"github.com/braulio-almonte-opt/go-practice/service"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
+
+func TestPostLoginReturnsBearerToken(t *testing.T) {
+	expiresAt := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
+	router := setupLoginRouter(func(_ context.Context, username, password string) (service.LoginResult, error) {
+		if username != "jane" || password != "correct-password" {
+			t.Fatalf("login received credentials (%q, %q)", username, password)
+		}
+		return service.LoginResult{AccessToken: "signed-token", ExpiresAt: expiresAt}, nil
+	})
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/login",
+		strings.NewReader(`{"username":"jane","password":"correct-password"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusOK, response.Code, response.Body.String())
+	}
+	var body map[string]interface{}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response JSON: %v", err)
+	}
+	if body["access_token"] != "signed-token" || body["token_type"] != "Bearer" {
+		t.Errorf("unexpected login response: %#v", body)
+	}
+	if body["expires_at"] != expiresAt.Format(time.RFC3339) {
+		t.Errorf("expires_at = %#v, want %q", body["expires_at"], expiresAt.Format(time.RFC3339))
+	}
+	if strings.Contains(response.Body.String(), "password") {
+		t.Errorf("login response must not contain password data: %s", response.Body.String())
+	}
+}
+
+func TestPostLoginMapsInputAndCredentialErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		loginErr   error
+		wantStatus int
+		wantError  string
+	}{
+		{
+			name:       "malformed JSON",
+			body:       `{"username":`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "Username and password are required",
+		},
+		{
+			name:       "missing password",
+			body:       `{"username":"jane"}`,
+			wantStatus: http.StatusBadRequest,
+			wantError:  "Username and password are required",
+		},
+		{
+			name:       "invalid credentials",
+			body:       `{"username":"jane","password":"wrong-password"}`,
+			loginErr:   service.ErrInvalidCredentials,
+			wantStatus: http.StatusUnauthorized,
+			wantError:  "Invalid username or password",
+		},
+		{
+			name:       "authentication backend failure",
+			body:       `{"username":"jane","password":"password"}`,
+			loginErr:   errors.New("database unavailable"),
+			wantStatus: http.StatusInternalServerError,
+			wantError:  "Failed to authenticate user",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			loginCalled := false
+			router := setupLoginRouter(func(context.Context, string, string) (service.LoginResult, error) {
+				loginCalled = true
+				return service.LoginResult{}, test.loginErr
+			})
+			request := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+
+			if response.Code != test.wantStatus {
+				t.Fatalf("expected status %d, got %d: %s", test.wantStatus, response.Code, response.Body.String())
+			}
+			var body map[string]string
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode response JSON: %v", err)
+			}
+			if body["error"] != test.wantError {
+				t.Errorf("error = %q, want %q", body["error"], test.wantError)
+			}
+			if test.wantStatus == http.StatusBadRequest && loginCalled {
+				t.Error("login callback must not be called for invalid request input")
+			}
+		})
+	}
+}
 
 func TestPostUser(t *testing.T) {
 	var insertedUser models.User

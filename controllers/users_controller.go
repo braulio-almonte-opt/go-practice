@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/braulio-almonte-opt/go-practice/models"
+	"github.com/braulio-almonte-opt/go-practice/service"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -20,6 +21,11 @@ type userResponse struct {
 	Role     string             `json:"role"`
 }
 
+type loginRequest struct {
+	UserName string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
 func newUserResponse(user models.User) userResponse {
 	return userResponse{
 		ID:       user.ID,
@@ -28,6 +34,32 @@ func newUserResponse(user models.User) userResponse {
 		LastName: user.LastName,
 		Balance:  user.Balance,
 		Role:     user.Role,
+	}
+}
+
+func NewLoginHandler(login func(context.Context, string, string) (service.LoginResult, error)) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var request loginRequest
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Username and password are required"})
+			return
+		}
+
+		result, err := login(c.Request.Context(), request.UserName, request.Password)
+		if err != nil {
+			if errors.Is(err, service.ErrInvalidCredentials) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to authenticate user"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"access_token": result.AccessToken,
+			"token_type":   "Bearer",
+			"expires_at":   result.ExpiresAt,
+		})
 	}
 }
 

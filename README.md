@@ -30,6 +30,34 @@ require a valid JWT sent in the `Authorization` header using the Bearer scheme.
 | `GET /users/:id` | Return the user whose ID is in the URL. A user may request their own ID; requesting another user's ID requires the `admin` role. | Valid JWT; owner or admin |
 | `GET /users` | Return the user list. | Valid JWT; admin only |
 
+### Logging In
+
+`POST /login` accepts JSON containing `username` and `password`. A successful
+login returns `200` with an HS256-signed bearer token and its expiration:
+
+```json
+{
+  "access_token": "<signed JWT>",
+  "token_type": "Bearer",
+  "expires_at": "2026-10-22T11:00:00Z"
+}
+```
+
+Tokens expire one hour after issue and contain the user's MongoDB ID as `sub`
+and the user's role as `role`. Configure `JWT_SECRET` with at least 32 random
+bytes before starting the application, for example:
+
+```sh
+export JWT_SECRET="$(openssl rand -base64 32)"
+```
+
+Unknown usernames and incorrect passwords receive the same `401` response.
+Missing or malformed credentials receive `400`; repository or signing failures
+receive `500`. Password hashing remains the separate BONUS2 task; until it is
+implemented, login compares passwords in the same format currently stored by
+registration. Tokens are issued by API6; AUTH1 must be completed before
+protected routes verify and accept them.
+
 ---
 
 ### Functional Requirements

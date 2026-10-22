@@ -7,6 +7,7 @@
 package main
 
 import (
+	"github.com/braulio-almonte-opt/go-practice/auth"
 	"github.com/braulio-almonte-opt/go-practice/models"
 	"github.com/braulio-almonte-opt/go-practice/repository"
 	"github.com/braulio-almonte-opt/go-practice/service"
@@ -17,11 +18,15 @@ import (
 
 // Injectors from wire.go:
 
-func initializeRouter(client *mongo.Client) *gin.Engine {
+func initializeRouter(client *mongo.Client, jwtSecret []byte) (*gin.Engine, error) {
 	userRepository := provideUserRepository(client)
-	userService := service.NewUserService(userRepository)
+	tokenIssuer, err := provideJWTManager(jwtSecret)
+	if err != nil {
+		return nil, err
+	}
+	userService := service.NewUserService(userRepository, tokenIssuer)
 	engine := newRouter(userService)
-	return engine
+	return engine, nil
 }
 
 // wire.go:
@@ -32,6 +37,11 @@ func provideUserRepository(client *mongo.Client) repository.UserRepository {
 	)
 }
 
+func provideJWTManager(secret []byte) (service.TokenIssuer, error) {
+	return auth.NewJWTManager(secret)
+}
+
 var userApplicationSet = wire.NewSet(
-	provideUserRepository, service.NewUserService, newRouter,
+	provideUserRepository,
+	provideJWTManager, service.NewUserService, newRouter,
 )

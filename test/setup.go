@@ -5,8 +5,16 @@ import (
 
 	"github.com/braulio-almonte-opt/go-practice/controllers"
 	"github.com/braulio-almonte-opt/go-practice/models"
+	"github.com/braulio-almonte-opt/go-practice/service"
 	"github.com/gin-gonic/gin"
 )
+
+func setupLoginRouter(login func(context.Context, string, string) (service.LoginResult, error)) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.POST("/login", controllers.NewLoginHandler(login))
+	return router
+}
 
 func setupRouter(insertUser func(context.Context, models.User) error) *gin.Engine {
 	gin.SetMode(gin.TestMode)

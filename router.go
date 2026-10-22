@@ -8,6 +8,7 @@ import (
 
 func newRouter(userService *service.UserService) *gin.Engine {
 	r := gin.Default()
+	r.POST("/login", controllers.NewLoginHandler(userService.Login))
 	users := r.Group("/users")
 	{
 		users.POST("", controllers.NewCreateUserHandler(userService.CreateUser))
