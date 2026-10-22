@@ -72,6 +72,20 @@ Controller (Handler) ──> Service (Business Logic) ──> DAO / Repository (
   * Unauthorized / Forbidden access cases
 * **Isolation Rule:** No direct database calls inside service-layer unit tests.
 
+### Regenerating Dependency Injection
+
+Google Wire connects the MongoDB repository, user service, and Gin router.
+After changing providers or constructor dependencies, regenerate the checked-in
+injector from the project root:
+
+```sh
+go run github.com/google/wire/cmd/wire@v0.7.0 gen ./...
+```
+
+The generated `wire_gen.go` is used by normal builds. MongoDB connection setup
+and cleanup remain in `main.go`; the initialized client is passed into the
+generated injector.
+
 ### Regenerating Repository Mocks
 
 Repository mocks are generated from `repository.UserRepository` with Mockery
