@@ -72,6 +72,22 @@ Controller (Handler) ──> Service (Business Logic) ──> DAO / Repository (
   * Unauthorized / Forbidden access cases
 * **Isolation Rule:** No direct database calls inside service-layer unit tests.
 
+### Running MongoDB Repository Integration Tests
+
+Repository integration tests require an explicitly configured MongoDB test
+server. Set `GO_PRACTICE_TEST_MONGODB_URI` and run:
+
+```sh
+GO_PRACTICE_TEST_MONGODB_URI='mongodb://localhost:27017' go test ./repository -v
+```
+
+The CRUD integration test creates a uniquely named `go_practice_test_*`
+database, uses only its own `users` collection, and drops that exact database
+during cleanup. Use a test MongoDB deployment; the integration test user needs
+permission to create and drop databases. If the environment variable is unset,
+the CRUD integration test is skipped. Disconnected-client error tests run
+without a MongoDB server.
+
 ### Regenerating Dependency Injection
 
 Google Wire connects the MongoDB repository, user service, and Gin router.
